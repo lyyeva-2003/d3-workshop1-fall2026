@@ -21,9 +21,13 @@
 let stocks = await Promise.all([
     d3.csv("data/AAPL.csv").then(data => ({ name: "AAPL", values: data })),
     // TODO: Load GOOG.csv with name "GOOG"
+    d3.csv("data/GOOG.csv").then(data => ({ name: "GOOG", values: data })),
     // TODO: Load AMZN.csv with name "AMZN"
+    d3.csv("data/AMZN.csv").then(data => ({ name: "AMZN", values: data })),
     // TODO: LOAD IBM.csv with name "IBM"
+    d3.csv("data/IBM.csv").then(data => ({ name: "IBM", values: data })),
     // TODO: LOAD MSFT.csv with name "MSFT"
+    d3.csv("data/MSFT.csv").then(data => ({ name: "MSFT", values: data })),
 ]);
 
 console.log("Loaded stocks:", stocks);
@@ -39,15 +43,22 @@ stocks.forEach(stock => {
     stock.values.forEach(d => {
         // TODO: Convert d.Date from string to Date object
         // Hint: new Date(d.Date)
+        d.Date = new Date(d.Date);
 
         // TODO: Convert d.Close from string to number
         // Hint: Use the + operator like +d.Close
+        d.Close = +d.Close;
 
         // TODO: Convert these additional fields to numbers
         // d.Open, d.High, d.Low, d.Volume
+        d.Open = +d.Open;
+        d.High = +d.High;
+        d.Low = +d.Low;
+        d.Volume = +d.Volume;
     });
 
     // TODO: Sort stock.values by date (oldest to newest)
+    stock.values.sort((a, b) => a.Date - b.Date);
 });
 
 console.log("Processed first stock:", stocks[0].values[0]);
@@ -90,24 +101,31 @@ const allValues = stocks.flatMap(s => s.values);
 // TODO: Create a time scale using d3.scaleUtc()
 // Hint: Look at demo.js Section 5 for the pattern
 const x = d3.scaleUtc()
-    .domain(/* TODO: Define domain for x axis */)
-    .range(/* TODO: Define width range in pixels */);
+    .domain(/* TODO: Define domain for x axis */
+        d3.extent(allValues, d => d.Date))
+    .range(/* TODO: Define width range in pixels */
+        [0, width]);
 
 // Y Scale - Maps prices to vertical positions
 // TODO: Create a linear scale using d3.scaleLinear()
 const y = d3.scaleLinear()
     .domain([
         // TODO: Get minimum Close price from all stocks
+        d3.min(allValues, d => d.Close),
 
         // TODO: Get maximum Close price from all stocks
+        d3.max(allValues, d => d.Close)
 
     ])
-    .range(/* TODO: define height range in pixels */);
+    .range(/* TODO: define height range in pixels */
+        [height, 0]);
 
 // Color Scale - Maps stock names to colors
 // TODO: Create an ordinal color scale
 // Hint: d3.scaleOrdinal(d3.schemeCategory10).domain(mapping goes here)
 const color = /* TODO: Your code here */
+    d3.scaleOrdinal(d3.schemeCategory10)
+        .domain(stocks.map(d => d.name));
 
 
 // ============================================================================
@@ -117,6 +135,9 @@ const color = /* TODO: Your code here */
 
 // X Axis - Shows years along the bottom
 const xAxis = // TODO: Define X axis, format ticks to show only years
+    d3.axisBottom(x)
+        .ticks(d3.utcYear.every(1))
+        .tickFormat(d3.utcFormat('%Y'));
 
 svg.append('g')
     .attr('class', 'x-axis')
@@ -127,6 +148,9 @@ svg.append('g')
 
 // Y Axis - Shows prices along the left side
 const yAxis = // TODO: Define Y axis, format ticks to show $ sign
+    d3.axisLeft(y)
+        .ticks(10)
+        .tickFormat(d => `$${d.toFixed(2)}`);
 
 svg.append('g')
     .attr('class', 'y-axis')
@@ -142,8 +166,10 @@ svg.append('g')
 
 // TODO: Create a line generator using d3.line()
 const line = d3.line()
-    .x(/* TODO: map Date to x-axis */)
-    .y(/* TODO: map 'Close' price to y-axis */)
+    .x(/* TODO: map Date to x-axis */
+        d => x(d.Date))
+    .y(/* TODO: map 'Close' price to y-axis */
+        d => y(d.Close))
     .curve(d3.curveMonotoneX); 
 
 // TODO: Loop through each stock and draw a line
@@ -156,6 +182,13 @@ stocks.forEach(stock => {
     //   - stroke: use the color scale to get the color for this stock 
     //   - stroke-width: 2
     //   - d: line (this uses the line generator to create the path)
+    svg.append('path')
+        .datum(stock.values)
+        .attr('class', 'line')
+        .attr('fill', 'none')
+        .attr('stroke', color(stock.name))
+        .attr('stroke-width', 2)
+        .attr('d', line);
 });
 
 // ============================================================================
@@ -215,65 +248,97 @@ const guide = svg.append('line')
 // The three handlers are chained onto it: one statement from svg.append to the final semicolon.
 svg.append('rect')
     .attr('class', 'overlay')
-    .attr('width', /* TODO: width of the plot area */)
-    .attr('height', /* TODO: height of the plot area */)
-    .attr('fill', /* TODO: a rect with no fill color */)
+    .attr('width', /* TODO: width of the plot area */
+        width)
+    .attr('height', /* TODO: height of the plot area */
+        height)
+    .attr('fill', /* TODO: a rect with no fill color */
+        'none')
     .attr('pointer-events', 'all') // Provided: an SVG shape with no fill ignores the mouse unless pointer-events is 'all'
 
     // mouseover: the mouse entered the plot
     .on('mouseover', function () {
         // TODO: show the tooltip (its 'opacity' style)
-        tooltip.style('opacity', /* TODO */);
+        tooltip.style('opacity', /* TODO */
+            1);
         // TODO: show the guide line
-        guide.style('opacity', /* TODO */);
+        guide.style('opacity', /* TODO */
+            1);
     })
 
     // mousemove: runs on every mouse move. The event is the FIRST argument.
     .on('mousemove', function (event) {
         //Pointer x inside the plot (a number of pixels)
         const [px] = /* TODO: d3.pointer(...) */
+            d3.pointer(event);
 
         //Pixel -> Date: run the x scale backwards
         const date = /* TODO */
+            x.invert(px);
 
         //For EACH stock, the data row closest to that date, then sort so the highest price comes first
         const rows = stocks
             .map(s => ({
                 name: s.name,
                 row: /* TODO: the element of s.values closest to date (use the bisect helper) */
+                    s.values[bisect(s.values, date)]
             }))
-            .sort((a, b) => /* TODO: compare the Close prices, highest first */);
+            .sort((a, b) => /* TODO: compare the Close prices, highest first */
+                b.row.Close - a.row.Close);
 
         // Move the guide line to the date of the first row (all stocks share trading days, so any stock's row works)
         guide
-            .attr('x1', /* TODO: pixel position of rows[0].row.Date */)
-            .attr('x2', /* TODO: the line is vertical, so the same x as x1 */);
+            .attr('x1', /* TODO: pixel position of rows[0].row.Date */
+                x(rows[0].row.Date))
+            .attr('x2', /* TODO: the line is vertical, so the same x as x1 */
+                x(rows[0].row.Date));
+
+        dots.data(rows, d => d.name)
+            .attr('cx', d => x(d.row.Date))
+            .attr('cy', d => y(d.row.Close))
+            .style('opacity', 1);
 
         // Fill the tooltip: the date in bold, then one line per company
         tooltip.html(
-            `<strong>${/* TODO: rows[0].row.Date as text (see the fmtDate helper) */}</strong>` +
+            `<strong>${/* TODO: rows[0].row.Date as text (see the fmtDate helper) */
+                fmtDate(rows[0].row.Date)}</strong>` +
             rows.map(r =>
-                `<br><span style="color:${color(r.name)}">&#9632;</span> ${/* TODO: company name */}: $${/* TODO: closing price with 2 decimals */}`
+                `<br><span style="color:${color(r.name)}">&#9632;</span> ${/* TODO: company name */
+                    r.name}: $${/* TODO: closing price with 2 decimals */
+                    r.row.Close.toFixed(2)}`
             ).join('')
         );
 
         // Place the tooltip next to the pointer (page coordinates)
         tooltip
-            .style('left', `${/* TODO: event.pageX (the pointer's x on the page), plus 16 */}px`)
-            .style('top', `${/* TODO: event.pageY (the pointer's y on the page), minus 28 */}px`);
+            .style('left', `${/* TODO: event.pageX (the pointer's x on the page), plus 16 */
+                event.pageX + 16}px`)
+            .style('top', `${/* TODO: event.pageY (the pointer's y on the page), minus 28 */
+                event.pageY - 28}px`);
     })
 
     // mouseout: the mouse left the plot
     .on('mouseout', function () {
         // TODO: hide the tooltip and the guide line again
-        tooltip.style('opacity', /* TODO */);
-        guide.style('opacity', /* TODO */);
+        tooltip.style('opacity', /* TODO */
+            0);
+        guide.style('opacity', /* TODO */
+            0);
+        dots.style('opacity', 0);
     });
 
 // TODO (BONUS): a dot on each line at the guide line.
 //   Create one circle per stock ONCE, with a keyed join (d => d.name), radius 4,
 //   filled with color(d.name), hidden to start. In mousemove, set each circle's
 //   cx to the guide's x and cy to y(that stock's Close).
+const dots = svg.selectAll('.stock-dot')
+    .data(stocks, d => d.name)
+    .join('circle')
+    .attr('class', 'stock-dot')
+    .attr('r', 4)
+    .attr('fill', d => color(d.name))
+    .style('pointer-events', 'none')
+    .style('opacity', 0);
 
 // ============================================================================
 // ADD LABELS
@@ -284,33 +349,43 @@ svg.append('rect')
 // TODO: Add a text element for the title
 svg.append('text')
     .attr('class', 'chart-title')
-    .attr('x', /* TODO: center the title */)
-    .attr('y', /* TODO: put the title above the chart */)
+    .attr('x', /* TODO: center the title */
+        width / 2)
+    .attr('y', /* TODO: put the title above the chart */
+        -20)
     .attr('text-anchor', 'middle')
     .style('font-size', '18px')
     .style('font-weight', 'bold')
-    .text(/* TODO: add your title */);
+    .text(/* TODO: add your title */
+        'Stock Closing Prices (2013–2018)');
 
 // X Axis Label
 // TODO: Add a label below the x-axis
 svg.append('text')
     .attr('class', 'x-axis-label')
-    .attr('x', /* TODO: center the label */)
-    .attr('y', /* TODO: put the label below x-xis */)
+    .attr('x', /* TODO: center the label */
+        width / 2)
+    .attr('y', /* TODO: put the label below x-xis */
+        height + 40)
     .attr('text-anchor', 'middle')
     .style('font-size', '14px')
-    .text(/* TODO: add axis label */);
+    .text(/* TODO: add axis label */
+        'Year');
 
 // Y Axis Label
 // TODO: Add a label to the left of the y-axis (rotated)
 svg.append('text')
     .attr('class', 'y-axis-label')
-    .attr('transform', /* TODO: 'rotate(-90)' */)
-    .attr('x', /* TODO: center the label */)
-    .attr('y', /* TODO: put the label to the left of y-axis */)
+    .attr('transform', /* TODO: 'rotate(-90)' */
+        'rotate(-90)')
+    .attr('x', /* TODO: center the label */
+        -height / 2)
+    .attr('y', /* TODO: put the label to the left of y-axis */
+        -75)
     .attr('text-anchor', 'middle')
     .style('font-size', '14px')
-    .text(/* TODO: add axis label */);
+    .text(/* TODO: add axis label */
+        'Closing Price (USD)');
 
 
 // ============================================================================
@@ -329,18 +404,26 @@ stocks.forEach((stock, i) => {
 
     // TODO: Add a colored line showing the stock's color
     legendRow.append('line')
-        .attr('x1', /* TODO: define x-coordinate of the line starting point */)
-        .attr('y1', /* TODO: define y-coordinate of the line starting point */)
-        .attr('x2', /* TODO: define x-coordinate of the line ending point */)
-        .attr('y2', /* TODO: define y-coordinate of the line ending point */)
-        .attr('stroke', /* TODO: use color variable that we defined above) */)
+        .attr('x1', /* TODO: define x-coordinate of the line starting point */
+            0)
+        .attr('y1', /* TODO: define y-coordinate of the line starting point */
+            0)
+        .attr('x2', /* TODO: define x-coordinate of the line ending point */
+            25)
+        .attr('y2', /* TODO: define y-coordinate of the line ending point */
+            0)
+        .attr('stroke', /* TODO: use color variable that we defined above) */
+            color(stock.name))
         .attr('stroke-width', 2);
 
     // TODO: Add text label with the stock name
     legendRow.append('text')
-        .attr('x', /* TODO: define x-coordinate of the text label starting point */)
-        .attr('y', /* TODO: define y-coordinate of the text label starting point */)
+        .attr('x', /* TODO: define x-coordinate of the text label starting point */
+            35)
+        .attr('y', /* TODO: define y-coordinate of the text label starting point */
+            4)
         .attr('text-anchor', 'start')
         .style('font-size', '12px')
-        .text(/* TODO: add stock name */);
+        .text(/* TODO: add stock name */
+            stock.name);
 });
